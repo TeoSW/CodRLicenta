@@ -1,0 +1,383 @@
+COD R: 
+RandomForest O3:
+# 1. Instalare și încărcare pachete
+install.packages(c("readxl", "randomForest"))
+library(readxl)
+library(randomForest)
+
+# 2. Citirea fișierului
+baza <- read_excel("C:/Users/Teo - Munca/OneDrive/Desktop/previziuneBD.xlsx")
+baza <- as.data.frame(baza)
+
+# 3. Transformări în factori ordonați (toate cele 3 coloane)
+niveluri_ord <- c("AAA", "AA", "A", "BBB", "BB", "B", "CCC", "CC", "C", "D")
+
+baza$SmartCityRating2024 <- factor(baza$SmartCityRating2024, levels = niveluri_ord, ordered = TRUE)
+baza$Structure2024 <- factor(baza$Structure2024, levels = niveluri_ord, ordered = TRUE)
+baza$Technology2024 <- factor(baza$Technology2024, levels = niveluri_ord, ordered = TRUE)
+
+# 4. Antrenare model Random Forest
+model <- randomForest(
+  SmartCityRating2024 ~ .,
+  data = baza[,-c(1,3,5,6,7,8)],  # elimină coloanele nefolositoare
+  ntree = 700
+)
+
+# 4.2 Afișarea evoluției erorii
+plot(model, main = "Evoluția erorii per arbore")
+
+# 5. Afișare importanță variabile și eroare generală
+print(model)
+varImpPlot(model, sort = TRUE, main = "Importanța predictorilor")
+
+# 6. Predicția pentru București
+bucuresti <- baza[baza$City == "Bucharest", ]
+clasa_prezisa <- predict(model, newdata = bucuresti)
+
+# 7. Estimarea poziției pe baza clasei prezise
+medii_smcr <- aggregate(SMCR_2024 ~ SmartCityRating2024, data = baza, FUN = mean)
+estimare_smcr <- medii_smcr$SMCR_2024[
+  as.character(medii_smcr$SmartCityRating2024) == as.character(clasa_prezisa)
+]
+
+# 8. Poziția reală și eroarea absolută
+pozitie_reala <- bucuresti$SMCR_2024
+eroare_abs <- abs(pozitie_reala - estimare_smcr)
+
+# 9. Afișare rezultate finale
+print(paste("Clasa prezisă pentru București:", as.character(clasa_prezisa)))
+print(paste("Poziție estimată (SMCR_2024):", round(estimare_smcr, 1)))
+print(paste("Poziție reală (SMCR_2024):", pozitie_reala))
+print(paste("Eroare absolută:", round(eroare_abs, 1)))
+
+StepWise O3:
+# 1. Instalare și încărcare pachete
+install.packages(c("readxl", "MASS", "writexl"))
+library(readxl)
+library(MASS)
+library(writexl)
+
+# 2. Citirea fișierului
+baza <- read_excel("C:/Users/Teo - Munca/OneDrive/Desktop/previziuneBD.xlsx")
+baza <- as.data.frame(baza)
+
+# 3. Transformare în factori ordonați
+niveluri_ord <- c("AAA", "AA", "A", "BBB", "BB", "B", "CCC", "CC", "C", "D")
+
+baza$SmartCityRating2024 <- factor(baza$SmartCityRating2024, levels = niveluri_ord, ordered = TRUE)
+baza$Structure2024 <- factor(baza$Structure2024, levels = niveluri_ord, ordered = TRUE)
+baza$Technology2024 <- factor(baza$Technology2024, levels = niveluri_ord, ordered = TRUE)
+
+# 4. Model complet de regresie (excludem variabile irelevante sau redundante)
+model_initial <- lm(SMCR_2024 ~ ., data = baza[ , -c(1, 3, 5, 6, 7, 8, 10)])
+
+# 5. Stepwise Regression (automat, AIC minim)
+model_stepwise <- stepAIC(model_initial, direction = "both", trace = TRUE)
+
+# 6. Rezumatul modelului final selectat
+summary(model_stepwise)
+
+# 7. Adăugare predicții în baza de date
+baza$Predictii_SMCR_stepwise <- predict(model_stepwise, newdata = baza)
+
+# 8. Salvare în Excel
+write_xlsx(baza, "C:/Users/cteod/OneDrive/Desktop/rezultate_stepwise.xlsx")
+
+RandomForrest v2.0 O3
+# 1. Instalare și încărcare pachete
+install.packages(c("readxl", "randomForest"))
+library(readxl)
+library(randomForest)
+
+# 2. Citirea fișierului
+baza <- read_excel("C:/Users/Teo - Munca/OneDrive/Desktop/previziuneBD.xlsx")
+baza <- as.data.frame(baza)
+
+# 3. Transformări în factori ordonați
+niveluri_ord <- c("AAA", "AA", "A", "BBB", "BB", "B", "CCC", "CC", "C", "D")
+baza$Structure2024 <- factor(baza$Structure2024, levels = niveluri_ord, ordered = TRUE)
+baza$Technology2024 <- factor(baza$Technology2024, levels = niveluri_ord, ordered = TRUE)
+
+# 4. Model Random Forest de regresie pentru SMCR_2024
+model_rf <- randomForest(
+  SMCR_2024 ~ Structure2024 + Technology2024,
+  data = baza,
+  ntree = 700
+)
+
+# 5. Predicția poziției SMCR_2024 pentru București
+bucuresti <- baza[baza$City == "Bucharest", ]
+predictie <- predict(model_rf, newdata = bucuresti)
+
+# 6. Afișarea doar a valorii estimate
+print(round(predictie, 1))
+
+O2: CLUSTERING
+# 1. Instalează și încarcă pachetele necesare
+install.packages("readxl")
+install.packages("factoextra")
+install.packages("writexl")
+library(readxl)
+library(factoextra)
+library(writexl)
+
+# 2. Citește fișierul Excel
+bd <- read_excel("C:/Users/cteod/OneDrive/Desktop/bd2.xlsx")
+
+# 3. Selectează variabilele relevante pentru clustering
+clustering_data <- bd[, c("Country HDI",
+                          "UMF8-Death rate due to road traffic injuries", 
+                          "UMF24-Gini coefficient", 
+                          "Share of urban population with convenient access to public transport (%)", 
+                          "2019 PM2.5")]
+
+# 4. Imputare: înlocuiește valorile lipsă cu media coloanei
+for (i in 1:ncol(clustering_data)) {
+  clustering_data[is.na(clustering_data[, i]), i] <- mean(clustering_data[, i], na.rm = TRUE)
+}
+
+# 5. Standardizează variabilele
+clustering_data_scaled <- scale(clustering_data)
+
+# 6. (Opțional) Află numărul optim de clustere
+fviz_nbclust(clustering_data_scaled, kmeans, method = "wss")
+
+# 7. Aplică K-means clustering (cu 3 clustere)
+set.seed(123)
+km <- kmeans(clustering_data_scaled, centers = 3, nstart = 25)
+
+# 8. Adaugă rezultatul în baza de date
+bd$cluster <- km$cluster
+
+# 9. Vizualizează clusterele
+fviz_cluster(km, data = clustering_data_scaled, geom = "point", labelsize = 7)
+
+# 10. Vezi distribuția orașelor pe clustere
+bd_result <- bd[, c("City", "cluster")]
+bd_sorted <- bd_result[order(bd_result$cluster), ]
+print(bd_sorted)
+View(bd_sorted)
+
+# 11. Calculează media variabilelor pe fiecare cluster
+aggregate(clustering_data, by = list(Cluster = bd$cluster), FUN = mean)
+
+# 12. (Opțional) Export în Excel
+write_xlsx(bd_sorted, "C:/Users/cteod/OneDrive/Desktop/cluster_orase.xlsx")
+
+O4 DISTANTE: 
+install.packages(c("osmdata", "dplyr", "ggplot2", "sf", "tmap", "writexl", "geosphere","ggmap", "viridis","geodist","ggspatial"))
+
+install.packages(c())
+
+library(osmdata)
+library(dplyr)
+library(ggplot2)
+library(sf)
+library(tmap)
+library(dodgr)
+library(writexl)
+library(geosphere)
+library(geodist)
+library(ggmap)
+library(ggspatial)
+library(viridis)
+
+iz_bbox <- getbb("Bucharest, Romania", featuretype="city", format_out = "polygon")
+
+
+
+iz_house <- opq(iz_bbox) %>%
+  add_osm_feature(key = "building",value=c("apartments","residential","house","dormitory")) %>%
+  osmdata_sf()  
+
+
+
+house_polys <- iz_house$osm_polygons
+select<-dplyr::select
+
+#drop unecessary columns
+house_polys <- house_polys %>%
+  select(osm_id, geometry)
+
+cen <- sf::st_centroid(house_polys)
+cen$id <- 1:max(nrow(cen))
+
+Bucharest_ed <- opq(bbox = iz_bbox) %>%
+  add_osm_feature(
+    key = 'amenity',
+    value = c("kindergarten","college","school"))    %>%
+  osmdata_sf(quiet = FALSE)
+
+Bucharest_university <- opq(bbox = iz_bbox) %>%
+  add_osm_feature(
+    key = 'building',
+    value = "university")    %>%
+  osmdata_sf(quiet = FALSE)
+
+Bucharest_bus <- opq(bbox = iz_bbox) %>%
+  add_osm_feature(
+    key = 'public_transport',
+    value = "stop_position")    %>%
+  osmdata_sf(quiet = FALSE)
+
+Bucharest_med <- opq(bbox = iz_bbox) %>%
+  add_osm_feature(
+    key = 'amenity',
+    value = c("hospital","clinic")  
+  ) %>%
+  osmdata_sf(quiet = FALSE)
+
+Bucharest_fuel <- opq(bbox = iz_bbox) %>%
+  add_osm_feature(
+    key = 'amenity',
+    value = "fuel"  
+  ) %>%
+  osmdata_sf(quiet = FALSE)
+
+Bucharest_market <- opq(bbox = iz_bbox) %>%
+  add_osm_feature(
+    key = 'shop',
+    value = "supermarket"  
+  ) %>%
+  osmdata_sf(quiet = FALSE)
+
+Bucharest_park <- opq(bbox = iz_bbox) %>%
+  add_osm_feature(
+    key = 'leisure',
+    value = "park"  
+  ) %>%
+  osmdata_sf(quiet = FALSE)
+
+Bucharest_res <- opq(bbox = iz_bbox) %>%
+  add_osm_feature(
+    key = 'amenity',
+    value = c("beergarten","bar","cafe","pub","restaurant")  
+  ) %>%
+  osmdata_sf(quiet = FALSE)
+
+Bucharest_art <- opq(bbox = iz_bbox) %>%
+  add_osm_feature(
+    key = 'amenity',
+    value = c("arts_centre","theatre")  
+  ) %>%
+  osmdata_sf(quiet = FALSE)
+
+Bucharest_office <- opq(bbox = iz_bbox) %>%
+  add_osm_feature(
+    key = 'building',
+    value = c("public","government","office")  
+  ) %>%
+  osmdata_sf(quiet = FALSE)
+
+Bucharest_pts <- Bucharest_bus[c("osm_points")] #filter only points
+Bucharest_p <-  do.call(rbind, Bucharest_pts) %>% #turn from list to sf object
+  select("osm_id", "geometry")
+
+Bucharest_way <- opq(bbox = iz_bbox) %>%
+  add_osm_feature(
+    key = 'highway') %>%
+  osmdata_sf(quiet = T)
+
+Bucharest_munca_ext <- opq(bbox = iz_bbox) %>%
+  add_osm_feature(key = "building", value = c("office", "commercial", "industrial")) %>%
+  osmdata_sf(quiet = FALSE)
+
+
+Bucharest_r <- Bucharest_way$osm_lines
+
+g <- weight_streetnet(Bucharest_r, wt_profile = "foot", type_col = "highway")
+
+
+# Funcție pentru calcul distanță medie spre puncte de interes
+compute_dist_osm <- function(poi_sf, label) {
+  poi_pts <- poi_sf$osm_points
+  if (nrow(poi_pts) == 0) {
+    message(paste("Fără date pentru:", label))
+    return(data.frame(label = label, mean_dist_m = NA))
+  }
+  nearest_idx <- st_nearest_feature(cen, poi_pts)
+  d <- st_distance(cen, poi_pts[nearest_idx, ], by_element = TRUE)
+  mean_dist <- mean(as.numeric(d), na.rm = TRUE)
+  return(data.frame(label = label, mean_dist_m = round(mean_dist, 2)))
+}
+
+# Listează distanțele pentru fiecare punct de interes
+results_list <- list()
+results_list[["Educație"]]         <- compute_dist_osm(Bucharest_ed, "Educație")
+results_list[["Universitate"]]     <- compute_dist_osm(Bucharest_university, "Universitate")
+results_list[["Spitale/Clinici"]]  <- compute_dist_osm(Bucharest_med, "Spitale/Clinici")
+results_list[["Transport"]]        <- compute_dist_osm(Bucharest_bus, "Transport")
+results_list[["Parcuri"]]          <- compute_dist_osm(Bucharest_park, "Parcuri")
+results_list[["Supermarket"]]      <- compute_dist_osm(Bucharest_market, "Supermarket")
+results_list[["Restaurante"]]      <- compute_dist_osm(Bucharest_res, "Restaurante")
+results_list[["Cultură"]]          <- compute_dist_osm(Bucharest_art, "Cultură")
+results_list[["Instituții"]]       <- compute_dist_osm(Bucharest_office, "Instituții")
+results_list[["Benzinării"]]       <- compute_dist_osm(Bucharest_fuel, "Benzinării")
+results_list[["Muncă_ext"]]       <- compute_dist_osm(Bucharest_munca_ext, "Locuri de muncă ext.")
+
+# Combina rezultate într-un tabel
+dist_summary <- do.call(rbind, results_list)
+
+# Afișează rezultatele
+print(dist_summary)
+
+#harti
+# 1. Coordonate București
+iz_bbox <- getbb("Bucharest, Romania", format_out = "polygon")
+
+# 2. Contur București
+bucuresti_shape <- opq("Bucharest Romania") %>%
+  add_osm_feature(key = "admin_level", value = "8") %>%  # nivel local
+  osmdata_sf()
+bucuresti_polygon <- bucuresti_shape$osm_multipolygons %>%
+  st_transform(4326)
+
+
+# 4. Universități
+univ <- opq(iz_bbox) %>%
+  add_osm_feature(key = "building", value = "university") %>%
+  osmdata_sf()
+univ_pts <- univ$osm_points
+
+# 5. Școli
+school <- opq(iz_bbox) %>%
+  add_osm_feature(key = "amenity", value = c("school", "kindergarten", "college")) %>%
+  osmdata_sf()
+school_pts <- school$osm_points
+
+# 6. Locuri de muncă
+jobs <- opq(iz_bbox) %>%
+  add_osm_feature(key = "building", value = c("office", "commercial", "industrial")) %>%
+  osmdata_sf()
+job_polys <- jobs$osm_polygons
+
+# 7. Ploturi simple
+par(mfrow = c(2, 2))  # 4 hărți într-un singur ecran
+
+# Harta 1
+plot(st_geometry(bucuresti_polygon), main = "Clădiri rezidențiale în București", col = "lightgray")
+plot(st_geometry(house_polys), col = "red", add = TRUE)
+
+# Harta 2
+plot(st_geometry(bucuresti_polygon), main = "Universități în București", col = "lightgray")
+plot(st_geometry(univ_pts), col = "blue", pch = 19, add = TRUE)
+
+# Harta 3
+plot(st_geometry(bucuresti_polygon), main = "Școli în București", col = "lightgray")
+plot(st_geometry(school_pts), col = "darkgreen", pch = 19, add = TRUE)
+
+# Harta 4
+plot(st_geometry(bucuresti_polygon), main = "Locuri de muncă în București", col = "lightgray")
+plot(st_geometry(job_polys), col = "purple", add = TRUE)
+
+#Adaugă zone tampon (buffer) de 1200–1500 m în jurul locuințelor, universităților, școlilor, locurilor de muncă etc. pentru a evalua dacă intră în sfera de 15 minute de mers pe jos (~1.2 km).
+
+buffer_15min <- st_buffer(st_union(cen), dist = 0.012)  # aprox 1.2 km în grade lat/lon
+plot(st_geometry(bucuresti_polygon), main = "Acoperire 15 minute", col = "lightgray")
+plot(buffer_15min, col = rgb(1, 0, 0, 0.2), add = TRUE)
+plot(st_geometry(Bucharest_market$osm_points), pch = 19, col = "blue", add = TRUE)
+
+# Creează un indicator binar (0/1) pentru clădirile care nu au acces la o funcție în 15 min:
+d_ed <- st_distance(cen, Bucharest_ed$osm_points[st_nearest_feature(cen, Bucharest_ed$osm_points), ], by_element = TRUE)
+cen$educatie_ok <- as.numeric(d_ed <= 1200)
+table(cen$educatie_ok)
