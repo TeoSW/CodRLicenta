@@ -112,57 +112,45 @@ predictie <- predict(model_rf, newdata = bucuresti)
 # 6. Afișarea doar a valorii estimate
 print(round(predictie, 1))
 
-O2: CLUSTERING
-# 1. Instalează și încarcă pachetele necesare
+O2: Regression
+# 1. Instalează și încarcă pachetele necesare (doar la prima rulare)
 install.packages("readxl")
-install.packages("factoextra")
-install.packages("writexl")
+install.packages("lmtest")
+install.packages("car")       # opțional, pentru diagnostic
+install.packages("sandwich")
 library(readxl)
-library(factoextra)
-library(writexl)
+library(lmtest)
+library(car)
+library(sandwich)
 
 # 2. Citește fișierul Excel
 bd <- read_excel("C:/Users/cteod/OneDrive/Desktop/bd2.xlsx")
 
-# 3. Selectează variabilele relevante pentru clustering
-clustering_data <- bd[, c("Country HDI",
-                          "UMF8-Death rate due to road traffic injuries", 
-                          "UMF24-Gini coefficient", 
-                          "Share of urban population with convenient access to public transport (%)", 
-                          "2019 PM2.5")]
+# 3. Creează modelul de regresie liniară
+model <- lm(`UMF8-Death rate due to road traffic injuries` ~ 
+              `UMF24-Gini coefficient` + 
+              `Share of urban population with convenient access to public transport (%)` + 
+              `2019 PM2.5` + 
+              `Country HDI`, 
+            data = bd)
 
-# 4. Imputare: înlocuiește valorile lipsă cu media coloanei
-for (i in 1:ncol(clustering_data)) {
-  clustering_data[is.na(clustering_data[, i]), i] <- mean(clustering_data[, i], na.rm = TRUE)
-}
+# 4. Rezumatul modelului (coeficienți, semnificații, R² etc.)
+summary(model)
 
-# 5. Standardizează variabilele
-clustering_data_scaled <- scale(clustering_data)
+# 5. Testul Breusch–Pagan pentru heteroscedasticitate
+bptest(model)
 
-# 6. (Opțional) Află numărul optim de clustere
-fviz_nbclust(clustering_data_scaled, kmeans, method = "wss")
+# 6. Testul Durbin–Watson pentru autocorelare a erorilor
+dwtest(model)
 
-# 7. Aplică K-means clustering (cu 3 clustere)
-set.seed(123)
-km <- kmeans(clustering_data_scaled, centers = 3, nstart = 25)
+# Calculează erori standard robuste (White)
+robust_se <- vcovHC(model, type = "HC1")
 
-# 8. Adaugă rezultatul în baza de date
-bd$cluster <- km$cluster
+# Coeficienți cu erori robuste
+coeftest(model, vcov. = robust_se)
 
-# 9. Vizualizează clusterele
-fviz_cluster(km, data = clustering_data_scaled, geom = "point", labelsize = 7)
-
-# 10. Vezi distribuția orașelor pe clustere
-bd_result <- bd[, c("City", "cluster")]
-bd_sorted <- bd_result[order(bd_result$cluster), ]
-print(bd_sorted)
-View(bd_sorted)
-
-# 11. Calculează media variabilelor pe fiecare cluster
-aggregate(clustering_data, by = list(Cluster = bd$cluster), FUN = mean)
-
-# 12. (Opțional) Export în Excel
-write_xlsx(bd_sorted, "C:/Users/cteod/OneDrive/Desktop/cluster_orase.xlsx")
+par(mfrow = c(2, 2))
+plot(model)
 
 O4 DISTANTE: 
 install.packages(c("osmdata", "dplyr", "ggplot2", "sf", "tmap", "writexl", "geosphere","ggmap", "viridis","geodist","ggspatial"))
